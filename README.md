@@ -75,12 +75,6 @@ Natural Voice Response
 
 ---
 
-# Current Architecture
-
-See the attached architecture documentation included within this repository.
-
----
-
 # Future Vision
 
 VoxPilot is designed as a foundation for an enterprise-grade Voice AI platform capable of supporting real-time conversational experiences across business applications.
