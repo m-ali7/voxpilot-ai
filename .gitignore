@@ -1,4 +1,21 @@
+# Python
 .venv/
-.env
 __pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Environment
+.env
+
+# Outputs
 outputs/
+
+# Node (Phase 1+)
+node_modules/
+dist/
+
+# OS
+.DS_Store
