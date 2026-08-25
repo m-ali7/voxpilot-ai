@@ -17,6 +17,10 @@ const STAGE_MS = 650
 const EMPTY_TRANSCRIPT_NOTICE = "I didn't catch anything \u2014 try again."
 const NOTICE_DURATION_MS = 2200
 
+// Stable imperative accessor — avoids subscribing the whole store (which would
+// re-render on every high-frequency audioLevel/playbackLevel write).
+const getState = useAssistantStore.getState
+
 export interface AssistantFlow {
   state: AssistantState
   startListening: () => Promise<void>
@@ -27,7 +31,7 @@ export interface AssistantFlow {
 }
 
 export function useAssistantFlow(): AssistantFlow {
-  const store = useAssistantStore()
+  const state = useAssistantStore((s) => s.state)
   const mic = useMicrophone()
   const noticeTimerRef = useRef<number | null>(null)
   const vadRef = useRef<VoiceActivityDetector | null>(null)
@@ -44,52 +48,45 @@ export function useAssistantFlow(): AssistantFlow {
 
   const showTransientNotice = useCallback(
     (message: string) => {
-      store.setError(null)
-      store.setNotice(message)
-      store.setState('error')
+      getState().setError(null)
+      getState().setNotice(message)
+      getState().setState('error')
       clearNoticeTimer()
       noticeTimerRef.current = window.setTimeout(() => {
-        useAssistantStore.getState().setNotice(null)
-        if (useAssistantStore.getState().state === 'error') {
-          useAssistantStore.getState().setState('idle')
+        getState().setNotice(null)
+        if (getState().state === 'error') {
+          getState().setState('idle')
         }
         noticeTimerRef.current = null
       }, NOTICE_DURATION_MS)
     },
-    [store, clearNoticeTimer],
+    [clearNoticeTimer],
   )
 
-  const handleFailure = useCallback(
-    (err: unknown) => {
-      const normalized = normalizeError(err)
-      if (normalized.detail) console.error('[voxpilot]', normalized.detail)
-      store.setError(normalized.message)
-      store.setState('error')
-    },
-    [store],
-  )
+  const handleFailure = useCallback((err: unknown) => {
+    const normalized = normalizeError(err)
+    if (normalized.detail) console.error('[voxpilot]', normalized.detail)
+    getState().setError(normalized.message)
+    getState().setState('error')
+  }, [])
 
   const ensureSession = useCallback(async (): Promise<string> => {
-    if (store.sessionId) return store.sessionId
+    const current = getState().sessionId
+    if (current) return current
     const session = await createSession()
-    store.setSessionId(session.id)
+    getState().setSessionId(session.id)
     return session.id
-  }, [store])
+  }, [])
 
   const applyTurn = useCallback(
-    (
-      intent: string,
-      project: ProjectIntelligence,
-      response: string,
-      audioUrl: string,
-    ) => {
-      store.setIntent(intent)
-      store.setProject(project)
-      store.setResponse(response)
-      store.setAudioUrl(mediaUrl(audioUrl))
-      store.setState('speaking')
+    (intent: string, project: ProjectIntelligence, response: string, audioUrl: string) => {
+      getState().setIntent(intent)
+      getState().setProject(project)
+      getState().setResponse(response)
+      getState().setAudioUrl(mediaUrl(audioUrl))
+      getState().setState('speaking')
     },
-    [store],
+    [],
   )
 
   const submitText = useCallback(
@@ -98,27 +95,27 @@ export function useAssistantFlow(): AssistantFlow {
       if (!trimmed) return
 
       // Barge-in: stop any current assistant playback before submitting.
-      store.interruptOutput()
+      getState().interruptOutput()
 
-      store.setUserTranscript(trimmed)
-      store.setError(null)
-      store.setNotice(null)
+      getState().setUserTranscript(trimmed)
+      getState().setError(null)
+      getState().setNotice(null)
       clearNoticeTimer()
 
       try {
         const sessionId = await ensureSession()
-        store.setState('understanding')
+        getState().setState('understanding')
         await wait(STAGE_MS)
-        store.setState('retrieving')
+        getState().setState('retrieving')
         await wait(STAGE_MS)
-        store.setState('thinking')
+        getState().setState('thinking')
         const turn = await submitTurn(sessionId, trimmed)
         applyTurn(turn.intent, turn.project, turn.response, turn.audio_url)
       } catch (err) {
         handleFailure(err)
       }
     },
-    [store, ensureSession, applyTurn, handleFailure, clearNoticeTimer],
+    [ensureSession, applyTurn, handleFailure, clearNoticeTimer],
   )
 
   const stopListening = useCallback(async () => {
@@ -130,15 +127,15 @@ export function useAssistantFlow(): AssistantFlow {
 
     try {
       const blob = await mic.stopRecording()
-      store.setIsMicActive(false)
-      store.setIsUserSpeaking(false)
-      store.setNotice(null)
+      getState().setIsMicActive(false)
+      getState().setIsUserSpeaking(false)
+      getState().setNotice(null)
       clearNoticeTimer()
-      store.setState('understanding')
+      getState().setState('understanding')
 
       const sessionId = await ensureSession()
       await wait(STAGE_MS)
-      store.setState('retrieving')
+      getState().setState('retrieving')
 
       const { text } = await transcribeAudio(sessionId, blob)
       const trimmed = text.trim()
@@ -149,16 +146,16 @@ export function useAssistantFlow(): AssistantFlow {
         return
       }
 
-      store.setUserTranscript(trimmed)
+      getState().setUserTranscript(trimmed)
       await wait(STAGE_MS)
 
-      store.setState('thinking')
+      getState().setState('thinking')
       const turn = await submitTurn(sessionId, trimmed)
       applyTurn(turn.intent, turn.project, turn.response, turn.audio_url)
     } catch (err) {
       handleFailure(err)
     }
-  }, [mic, store, ensureSession, applyTurn, handleFailure, showTransientNotice, clearNoticeTimer])
+  }, [mic, ensureSession, applyTurn, handleFailure, showTransientNotice, clearNoticeTimer])
 
   const handleNoSpeech = useCallback(async () => {
     if (!mic.isRecording) return
@@ -168,29 +165,29 @@ export function useAssistantFlow(): AssistantFlow {
     } catch {
       // ignore
     }
-    store.setIsMicActive(false)
-    store.setIsUserSpeaking(false)
+    getState().setIsMicActive(false)
+    getState().setIsUserSpeaking(false)
     showTransientNotice(EMPTY_TRANSCRIPT_NOTICE)
-  }, [mic, store, showTransientNotice])
+  }, [mic, showTransientNotice])
 
   const startListening = useCallback(async () => {
     // Barge-in: stop any current assistant playback before listening.
-    store.interruptOutput()
-    store.setError(null)
-    store.setNotice(null)
+    getState().interruptOutput()
+    getState().setError(null)
+    getState().setNotice(null)
     clearNoticeTimer()
 
     if (!mic.isSupported) {
-      store.setError('Microphone is not supported in this browser. You can type your request instead.')
-      store.setState('error')
+      getState().setError('Microphone is not supported in this browser. You can type your request instead.')
+      getState().setState('error')
       return
     }
 
     const permission =
       mic.permission === 'granted' ? 'granted' : await mic.requestPermission()
     if (permission !== 'granted') {
-      store.setError(mic.error ?? 'Microphone access was denied. You can still type your request.')
-      store.setState('error')
+      getState().setError(mic.error ?? 'Microphone access was denied. You can still type your request.')
+      getState().setState('error')
       return
     }
 
@@ -204,19 +201,19 @@ export function useAssistantFlow(): AssistantFlow {
     })
     vadRef.current = vad
     lastSpeakingRef.current = false
-    store.setIsUserSpeaking(false)
+    getState().setIsUserSpeaking(false)
 
-    store.setState('listening')
-    store.setIsMicActive(true)
+    getState().setState('listening')
+    getState().setIsMicActive(true)
     await mic.startRecording((level) => {
-      store.setAudioLevel(level)
+      getState().setAudioLevel(level)
       const speaking = vad.push(level)
       if (speaking !== lastSpeakingRef.current) {
         lastSpeakingRef.current = speaking
-        store.setIsUserSpeaking(speaking)
+        getState().setIsUserSpeaking(speaking)
       }
     })
-  }, [mic, store, clearNoticeTimer])
+  }, [mic, clearNoticeTimer])
 
   const toggleListening = useCallback(async () => {
     if (mic.isRecording) {
@@ -230,8 +227,8 @@ export function useAssistantFlow(): AssistantFlow {
     clearNoticeTimer()
     vadRef.current?.cancel()
     lastSpeakingRef.current = false
-    store.startNewConversation()
-  }, [store, clearNoticeTimer])
+    getState().startNewConversation()
+  }, [clearNoticeTimer])
 
   // Keep the long-lived VAD listeners pointing at the latest async callbacks.
   useEffect(() => {
@@ -240,7 +237,7 @@ export function useAssistantFlow(): AssistantFlow {
   })
 
   return {
-    state: store.state,
+    state,
     startListening,
     stopListening,
     toggleListening,

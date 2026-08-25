@@ -64,8 +64,6 @@ function statusDot(status: string): string {
 
 export default function App() {
   const state = useAssistantStore((s) => s.state)
-  const level = useAssistantStore((s) => s.audioLevel)
-  const playbackLevel = useAssistantStore((s) => s.playbackLevel)
   const userTranscript = useAssistantStore((s) => s.userTranscript)
   const response = useAssistantStore((s) => s.response)
   const intent = useAssistantStore((s) => s.intent)
@@ -124,9 +122,6 @@ export default function App() {
               transition={{ type: 'spring', stiffness: 180, damping: 26 }}
             >
               <AssistantOrb
-                state={state}
-                level={level}
-                playbackLevel={playbackLevel}
                 interactive
                 disabled={busy}
                 onClick={() => void flow.toggleListening()}
@@ -177,9 +172,6 @@ export default function App() {
                   transition={{ type: 'spring', stiffness: 180, damping: 26 }}
                 >
                   <AssistantOrb
-                    state={state}
-                    level={level}
-                    playbackLevel={playbackLevel}
                     interactive
                     disabled={busy}
                     onClick={() => void flow.toggleListening()}
