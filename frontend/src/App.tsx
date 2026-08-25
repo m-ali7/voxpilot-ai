@@ -79,8 +79,9 @@ export default function App() {
 
   const hasResponse = response !== null
   const listening = state === 'listening'
-  const processing =
-    state === 'understanding' || state === 'retrieving' || state === 'thinking' || state === 'speaking'
+  // In-flight processing states (input stays disabled to avoid conflicting
+  // requests). 'speaking' is deliberately excluded: the user may barge in.
+  const busy = state === 'understanding' || state === 'retrieving' || state === 'thinking'
 
   const handleAudioEnded = () => {
     if (useAssistantStore.getState().state === 'speaking') {
@@ -127,7 +128,7 @@ export default function App() {
                 level={level}
                 playbackLevel={playbackLevel}
                 interactive
-                disabled={processing}
+                disabled={busy}
                 onClick={() => void flow.toggleListening()}
                 label={orbLabel}
               />
@@ -148,14 +149,14 @@ export default function App() {
               <div className="flex flex-col items-center gap-3">
                 <VoiceControl
                   isRecording={listening}
-                  disabled={processing}
+                  disabled={busy}
                   onToggle={() => void flow.toggleListening()}
                 />
                 <StatusIndicator state={state} label={statusLabel} />
               </div>
 
               <div className="w-full max-w-md">
-                <PromptPanel onSubmit={(text) => void flow.submitText(text)} busy={listening || processing} />
+                <PromptPanel onSubmit={(text) => void flow.submitText(text)} busy={listening || busy} />
               </div>
             </div>
           </motion.main>
@@ -180,7 +181,7 @@ export default function App() {
                     level={level}
                     playbackLevel={playbackLevel}
                     interactive
-                    disabled={processing}
+                    disabled={busy}
                     onClick={() => void flow.toggleListening()}
                     label={orbLabel}
                     detail="compact"
@@ -248,7 +249,7 @@ export default function App() {
               <div className="mx-auto max-w-3xl px-6 py-3 sm:px-10">
                 <FollowUpComposer
                   listening={listening}
-                  busy={processing}
+                  busy={busy}
                   onSubmit={(text) => void flow.submitText(text)}
                   onMicToggle={() => void flow.toggleListening()}
                 />

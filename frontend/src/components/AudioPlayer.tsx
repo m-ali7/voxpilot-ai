@@ -14,6 +14,7 @@ export function AudioPlayer({ src, onEnded }: AudioPlayerProps) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [failed, setFailed] = useState(false)
   const setPlaybackLevel = useAssistantStore((s) => s.setPlaybackLevel)
+  const interruptToken = useAssistantStore((s) => s.interruptToken)
 
   const { ref: analyserRef, start, stop } = useAudioAnalyser((level) => setPlaybackLevel(level))
 
@@ -24,6 +25,27 @@ export function AudioPlayer({ src, onEnded }: AudioPlayerProps) {
     },
     [analyserRef],
   )
+
+  // React to interruption requests (barge-in). Idempotent: pausing an already
+  // paused element is a no-op, and it never throws.
+  const handledTokenRef = useRef(interruptToken)
+  useEffect(() => {
+    if (interruptToken === handledTokenRef.current) return
+    handledTokenRef.current = interruptToken
+    const audio = audioRef.current
+    if (audio) {
+      try {
+        audio.pause()
+        audio.currentTime = 0
+      } catch {
+        // ignore
+      }
+    }
+    stop()
+    setIsPlaying(false)
+    setFailed(false)
+    setPlaybackLevel(0)
+  }, [interruptToken, stop, setPlaybackLevel])
 
   // Best-effort autoplay, independent of the analyser. No synchronous state
   // updates: any rejection (autoplay blocked, or a synchronous throw) becomes a
@@ -81,6 +103,9 @@ export function AudioPlayer({ src, onEnded }: AudioPlayerProps) {
         onError={() => {
           setIsPlaying(false)
           setFailed(true)
+          // Treat a playback error like "playback finished" so the speaking
+          // state is cleared (never left stuck on 'speaking').
+          onEnded()
         }}
       />
       <button

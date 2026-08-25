@@ -92,6 +92,9 @@ export function useAssistantFlow(): AssistantFlow {
       const trimmed = text.trim()
       if (!trimmed) return
 
+      // Barge-in: stop any current assistant playback before submitting.
+      store.interruptOutput()
+
       store.setUserTranscript(trimmed)
       store.setError(null)
       store.setNotice(null)
@@ -148,6 +151,8 @@ export function useAssistantFlow(): AssistantFlow {
   }, [mic, store, ensureSession, applyTurn, handleFailure, showTransientNotice, clearNoticeTimer])
 
   const startListening = useCallback(async () => {
+    // Barge-in: stop any current assistant playback before listening.
+    store.interruptOutput()
     store.setError(null)
     store.setNotice(null)
     clearNoticeTimer()

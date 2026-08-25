@@ -51,4 +51,24 @@ describe('assistantStore', () => {
     expect(store.notice).toBe('I didn\'t catch anything.')
     expect(store.playbackLevel).toBe(0.7)
   })
+
+  it('interruptOutput increments the token and resets playbackLevel', () => {
+    useAssistantStore.getState().setPlaybackLevel(0.6)
+    const before = useAssistantStore.getState().interruptToken
+
+    useAssistantStore.getState().interruptOutput()
+
+    const store = useAssistantStore.getState()
+    expect(store.interruptToken).toBe(before + 1)
+    expect(store.playbackLevel).toBe(0)
+  })
+
+  it('startNewConversation resets the interruption token', () => {
+    useAssistantStore.getState().interruptOutput()
+    useAssistantStore.getState().interruptOutput()
+
+    useAssistantStore.getState().startNewConversation()
+
+    expect(useAssistantStore.getState().interruptToken).toBe(0)
+  })
 })
