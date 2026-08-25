@@ -19,6 +19,7 @@ services:
     build: ./backend
     environment:
       DATABASE_URL: postgresql+asyncpg://voxpilot:voxpilot@postgres:5432/voxpilot
+      OUTPUT_DIR: /app/outputs
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}

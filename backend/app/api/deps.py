@@ -5,11 +5,12 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.db import get_db
-from app.domain.ports import LLMPort, TTSPort
-from app.infra.business.demo_business_logic import DemoBusinessContext
+from app.domain.ports import LLMPort, STTPort, TTSPort
+from app.infra.integrations.demo_project import DemoProjectConnector
 from app.infra.intent.intent_router import IntentRouter
 from app.infra.llm.openai_client import OpenAILLMClient
 from app.infra.memory.message_repository import MessageRepository, SessionRepository
+from app.infra.stt.openai_whisper import OpenAIWhisperTranscriber
 from app.infra.voice.elevenlabs_generator import ElevenLabsVoiceGenerator
 from app.services.orchestrator import Orchestrator
 from app.services.session_service import SessionService
@@ -27,10 +28,15 @@ def get_tts() -> TTSPort:
 
 
 @lru_cache
+def get_stt() -> STTPort:
+    return OpenAIWhisperTranscriber()
+
+
+@lru_cache
 def get_orchestrator() -> Orchestrator:
     return Orchestrator(
         intent_classifier=IntentRouter(),
-        business_context=DemoBusinessContext(),
+        intelligence=DemoProjectConnector(),
         llm=get_llm(),
     )
 
@@ -38,6 +44,7 @@ def get_orchestrator() -> Orchestrator:
 DbSession = Annotated[AsyncSession, Depends(get_db)]
 OrchestratorDep = Annotated[Orchestrator, Depends(get_orchestrator)]
 TTSDep = Annotated[TTSPort, Depends(get_tts)]
+STTDep = Annotated[STTPort, Depends(get_stt)]
 
 
 def get_session_service(db: DbSession) -> SessionService:

@@ -1,10 +1,22 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routers import health, sessions, turn
+from app.api.routers import health, sessions, transcribe, turn
 from app.core.config import get_settings
+from app.core.errors import ProviderError, VoxPilotError
 from app.core.logging import configure_logging
+
+
+def _register_exception_handlers(app: FastAPI) -> None:
+    @app.exception_handler(VoxPilotError)
+    async def handle_voxpilot_error(request: Request, exc: VoxPilotError) -> JSONResponse:
+        # Provider unavailability (e.g. missing key) is a controlled 503; any
+        # other internal application error maps to 500. The detail message is
+        # deliberately free of credentials.
+        status = 503 if isinstance(exc, ProviderError) else 500
+        return JSONResponse(status_code=status, content={"detail": str(exc)})
 
 
 def create_app() -> FastAPI:
@@ -21,11 +33,14 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    _register_exception_handlers(app)
+
     settings.output_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/media", StaticFiles(directory=settings.output_dir), name="media")
 
     app.include_router(health.router)
     app.include_router(sessions.router)
+    app.include_router(transcribe.router)
     app.include_router(turn.router)
 
     return app

@@ -1,9 +1,11 @@
 import uuid
+from dataclasses import asdict
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.deps import get_session_service, get_turn_service
+from app.schemas.intelligence import ProjectIntelligenceOut
 from app.schemas.turn import TurnIn, TurnOut
 from app.services.session_service import SessionService
 from app.services.turn_service import TurnService
@@ -28,7 +30,7 @@ async def create_turn(
 
     return TurnOut(
         intent=result.intent,
-        business_context=result.business_context,
         response=result.response,
         audio_url=f"/media/{result.audio_path.name}",
+        project=ProjectIntelligenceOut(**asdict(result.project)),
     )

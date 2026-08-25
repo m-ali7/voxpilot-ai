@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
 
+from app.domain.intelligence import ProjectIntelligence
+
 
 class IntentClassifierPort(ABC):
     @abstractmethod
@@ -8,10 +10,17 @@ class IntentClassifierPort(ABC):
         """Return a normalized intent label for a user prompt."""
 
 
-class BusinessContextPort(ABC):
+class ProjectIntelligencePort(ABC):
+    """Integration seam for project/business intelligence.
+
+    Implementations return structured project data for a query. The demo
+    connector is a placeholder for real Azure DevOps, SharePoint, Confluence,
+    Power BI or ServiceNow connectors.
+    """
+
     @abstractmethod
-    async def get_context(self, intent: str) -> str:
-        """Return trusted business context for an intent (may be empty)."""
+    async def get_intelligence(self, query: str = "") -> ProjectIntelligence:
+        """Return structured project intelligence relevant to the query."""
 
 
 class LLMPort(ABC):

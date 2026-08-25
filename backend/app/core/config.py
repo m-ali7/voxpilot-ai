@@ -4,16 +4,28 @@ from pathlib import Path
 from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# config.py lives at backend/app/core/config.py
-# parents[2] resolves to the repository root (one level above backend/).
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+# config.py lives at <repo>/backend/app/core/config.py, therefore:
+#   parents[2] -> backend/  (BACKEND_DIR)
+#   parents[3] -> <repo>/   (PROJECT_ROOT)
+# These are absolute paths derived from __file__ (not the working directory),
+# so resolution is identical whether Uvicorn is launched from backend/ or the
+# repository root.
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = BACKEND_DIR.parent
+ENV_FILE = PROJECT_ROOT / ".env"
 
 
 class Settings(BaseSettings):
-    """Application settings loaded from environment variables and the root .env file."""
+    """Application settings.
+
+    Precedence (highest first): runtime environment variables, then the
+    repository-root ``.env`` file, then field defaults. This keeps real
+    environment variables supplied by Docker/cloud authoritative while allowing
+    local development to fall back to the single ``.env`` at the repo root.
+    """
 
     model_config = SettingsConfigDict(
-        env_file=(PROJECT_ROOT / ".env"),
+        env_file=ENV_FILE,
         env_file_encoding="utf-8",
         extra="ignore",
         case_sensitive=False,

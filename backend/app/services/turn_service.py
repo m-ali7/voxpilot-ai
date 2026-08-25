@@ -2,6 +2,7 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.domain.intelligence import ProjectIntelligence
 from app.domain.ports import TTSPort
 from app.infra.memory.message_repository import MessageRepository
 from app.services.orchestrator import Orchestrator
@@ -10,7 +11,7 @@ from app.services.orchestrator import Orchestrator
 @dataclass(frozen=True)
 class TurnResult:
     intent: str
-    business_context: str
+    project: ProjectIntelligence
     response: str
     audio_path: Path
 
@@ -27,7 +28,12 @@ class TurnService:
         self._messages = message_repository
 
     async def run_turn(self, session_id: uuid.UUID, user_prompt: str) -> TurnResult:
-        result = await self._orchestrator.run(user_prompt)
+        prior = await self._messages.list_for_session(session_id)
+        prior_messages = [
+            {"role": message.role, "content": message.content} for message in prior
+        ]
+
+        result = await self._orchestrator.run(user_prompt, prior_messages)
         audio_path = await self._tts.synthesize(result.response)
 
         await self._messages.add(session_id, "user", user_prompt, result.intent)
@@ -35,7 +41,7 @@ class TurnService:
 
         return TurnResult(
             intent=result.intent,
-            business_context=result.business_context,
+            project=result.project,
             response=result.response,
             audio_path=audio_path,
         )
