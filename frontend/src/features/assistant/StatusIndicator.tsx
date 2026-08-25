@@ -10,7 +10,13 @@ const LABELS: Record<AssistantState, string> = {
   error: 'Something went wrong',
 }
 
-export function StatusIndicator({ state }: { state: AssistantState }) {
+interface StatusIndicatorProps {
+  state: AssistantState
+  /** Optional override (e.g. a transient recoverable notice). */
+  label?: string
+}
+
+export function StatusIndicator({ state, label }: StatusIndicatorProps) {
   return (
     <p className="flex items-center gap-2 text-sm text-slate-400" aria-live="polite">
       <span
@@ -19,7 +25,7 @@ export function StatusIndicator({ state }: { state: AssistantState }) {
           boxShadow: state !== 'idle' ? '0 0 8px 2px rgba(96,165,250,0.6)' : undefined,
         }}
       />
-      {LABELS[state]}
+      {label ?? LABELS[state]}
     </p>
   )
 }

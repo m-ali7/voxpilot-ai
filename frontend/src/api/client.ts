@@ -15,13 +15,19 @@ export function apiUrl(path: string): string {
   return `${API_BASE_URL}${path}`
 }
 
-async function readErrorMessage(res: Response): Promise<string> {
+/**
+ * Extract a safe, user-presentable message from a failed response.
+ *
+ * Only a plain-string `detail` is surfaced. Non-string details (e.g. FastAPI
+ * 422 validation arrays) are deliberately discarded so raw payloads never
+ * reach the UI.
+ */
+export async function readErrorMessage(res: Response): Promise<string> {
   try {
     const body = (await res.json()) as { detail?: unknown }
-    if (typeof body.detail === 'string') return body.detail
-    if (body.detail) return JSON.stringify(body.detail)
+    if (typeof body.detail === 'string' && body.detail.length > 0) return body.detail
   } catch {
-    // fall through to generic message
+    // non-JSON body — fall through to generic message
   }
   return `Request failed with status ${res.status}`
 }
@@ -32,8 +38,4 @@ export async function apiRequest<T>(path: string, init?: RequestInit): Promise<T
     throw new ApiError(res.status, await readErrorMessage(res))
   }
   return (await res.json()) as T
-}
-
-export function resolveMediaUrl(path: string): string {
-  return apiUrl(path)
 }

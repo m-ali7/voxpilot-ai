@@ -22,6 +22,17 @@ function ErrorBanner({ message }: { message: string }) {
   )
 }
 
+function NoticeBanner({ message }: { message: string }) {
+  return (
+    <div
+      role="status"
+      className="mx-auto w-full rounded-xl border border-blue-400/25 bg-blue-500/10 px-4 py-3 text-sm text-blue-100"
+    >
+      {message}
+    </div>
+  )
+}
+
 function Wordmark() {
   return (
     <div className="flex items-center gap-2">
@@ -54,12 +65,14 @@ function statusDot(status: string): string {
 export default function App() {
   const state = useAssistantStore((s) => s.state)
   const level = useAssistantStore((s) => s.audioLevel)
+  const playbackLevel = useAssistantStore((s) => s.playbackLevel)
   const userTranscript = useAssistantStore((s) => s.userTranscript)
   const response = useAssistantStore((s) => s.response)
   const intent = useAssistantStore((s) => s.intent)
   const project = useAssistantStore((s) => s.project)
   const audioUrl = useAssistantStore((s) => s.audioUrl)
   const error = useAssistantStore((s) => s.error)
+  const notice = useAssistantStore((s) => s.notice)
   const setState = useAssistantStore((s) => s.setState)
 
   const flow = useAssistantFlow()
@@ -76,6 +89,7 @@ export default function App() {
   }
 
   const orbLabel = listening ? 'Stop recording' : 'Ask VoxPilot'
+  const statusLabel = notice ?? undefined
 
   return (
     <div className="app-bg flex min-h-screen flex-col">
@@ -97,6 +111,11 @@ export default function App() {
                 <ErrorBanner message={error} />
               </div>
             )}
+            {notice && (
+              <div className="mb-6 w-full max-w-xl">
+                <NoticeBanner message={notice} />
+              </div>
+            )}
 
             <motion.div
               layoutId="voxpilot-orb"
@@ -106,6 +125,7 @@ export default function App() {
               <AssistantOrb
                 state={state}
                 level={level}
+                playbackLevel={playbackLevel}
                 interactive
                 disabled={processing}
                 onClick={() => void flow.toggleListening()}
@@ -131,7 +151,7 @@ export default function App() {
                   disabled={processing}
                   onToggle={() => void flow.toggleListening()}
                 />
-                <StatusIndicator state={state} />
+                <StatusIndicator state={state} label={statusLabel} />
               </div>
 
               <div className="w-full max-w-md">
@@ -158,10 +178,12 @@ export default function App() {
                   <AssistantOrb
                     state={state}
                     level={level}
+                    playbackLevel={playbackLevel}
                     interactive
                     disabled={processing}
                     onClick={() => void flow.toggleListening()}
                     label={orbLabel}
+                    detail="compact"
                   />
                 </motion.div>
 
@@ -186,7 +208,7 @@ export default function App() {
 
                 <div className="ml-auto flex shrink-0 items-center gap-4">
                   <div className="hidden sm:block">
-                    <StatusIndicator state={state} />
+                    <StatusIndicator state={state} label={statusLabel} />
                   </div>
                   <button
                     type="button"
@@ -204,6 +226,11 @@ export default function App() {
               {error && (
                 <div className="mb-5">
                   <ErrorBanner message={error} />
+                </div>
+              )}
+              {notice && (
+                <div className="mb-5">
+                  <NoticeBanner message={notice} />
                 </div>
               )}
               <IntelligenceWorkspace

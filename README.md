@@ -5,8 +5,9 @@ Enterprise voice copilot. This repository contains the legacy Streamlit prototyp
 
 ## Current state
 
-Phase 1.5 — continuous conversational assistant with a simulated enterprise
-connector:
+Phase 1.7 — voice UX polish: fluid amplitude-reactive orb, recoverable empty-speech
+handling, and normalized error presentation, on top of the Phase 1.6 conversational
+workspace with a simulated enterprise connector.
 
 - `backend/` — FastAPI service (layered architecture: api → services → domain → infra).
 - `frontend/` — React + TypeScript voice-first UI (orb, mic capture, intelligence workspace).
@@ -84,6 +85,20 @@ The workspace is populated by an integration connector behind
 Real Azure DevOps / ServiceNow / SharePoint / Confluence / Power BI connectors will
 implement the same port later without changing the pipeline.
 
+## Voice & media routing
+
+- **Same-origin `/media`**: the backend returns relative `/media/...` audio URLs. In
+  development the Vite dev server proxies `/media` to `http://localhost:8000`; in
+  production the reverse proxy (nginx) must route `/media` to the backend the same way.
+  Same-origin media keeps the Web Audio `MediaElementSource` analyser CORS-clean so the
+  orb can react to assistant playback amplitude.
+- **Amplitude → orb**: microphone level (`useMicrophone`) and assistant playback level
+  (`useAudioAnalyser`) both feed a normalized 0..1 value into `AssistantOrb`, driving
+  internal fluid deformation and glow (not whole-orb scaling).
+- **Empty speech**: a whitespace-only transcript is intercepted before any turn/LLM/TTS
+  call and produces a recoverable "I didn't catch anything…" notice that auto-clears to
+  Ready. Raw API/provider errors are normalized to friendly messages (`utils/errors.ts`).
+
 ## Streaming architecture (next step)
 
 The current pipeline is synchronous (single `/turn` round-trip). The boundaries are
@@ -104,5 +119,5 @@ already shaped for streaming without redesign:
 make test        # backend pytest
 make lint        # backend ruff
 make typecheck   # backend mypy
-cd frontend && npm run lint && npm run build
+cd frontend && npm run lint && npm run test && npm run build
 ```

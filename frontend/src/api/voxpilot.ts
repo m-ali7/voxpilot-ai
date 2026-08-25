@@ -1,5 +1,5 @@
 import type { Session, TranscribeResult, Turn } from '../types/api'
-import { apiRequest, resolveMediaUrl } from './client'
+import { apiRequest } from './client'
 
 export async function createSession(): Promise<Session> {
   return apiRequest<Session>('/sessions', { method: 'POST' })
@@ -22,6 +22,12 @@ export async function submitTurn(sessionId: string, text: string): Promise<Turn>
   })
 }
 
+/**
+ * The backend returns a relative /media/... path. Keep it relative so it is
+ * served same-origin: via the Vite dev proxy in development and the reverse
+ * proxy in production. Same-origin media keeps the Web Audio analyser
+ * (MediaElementSource) CORS-clean.
+ */
 export function mediaUrl(audioUrl: string): string {
-  return resolveMediaUrl(audioUrl)
+  return audioUrl
 }

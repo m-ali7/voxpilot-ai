@@ -13,7 +13,9 @@ interface AssistantStore {
   project: ProjectIntelligence | null
   audioUrl: string | null
   error: string | null
+  notice: string | null
   audioLevel: number
+  playbackLevel: number
   isMicActive: boolean
 
   setState: (state: AssistantState) => void
@@ -25,7 +27,9 @@ interface AssistantStore {
   setProject: (project: ProjectIntelligence | null) => void
   setAudioUrl: (url: string | null) => void
   setError: (error: string | null) => void
+  setNotice: (notice: string | null) => void
   setAudioLevel: (level: number) => void
+  setPlaybackLevel: (level: number) => void
   setIsMicActive: (active: boolean) => void
   startNewConversation: () => void
 }
@@ -40,7 +44,9 @@ export const useAssistantStore = create<AssistantStore>((set) => ({
   project: null,
   audioUrl: null,
   error: null,
+  notice: null,
   audioLevel: 0,
+  playbackLevel: 0,
   isMicActive: false,
 
   setState: (state) => set({ state }),
@@ -52,7 +58,9 @@ export const useAssistantStore = create<AssistantStore>((set) => ({
   setProject: (project) => set({ project }),
   setAudioUrl: (audioUrl) => set({ audioUrl }),
   setError: (error) => set({ error }),
+  setNotice: (notice) => set({ notice }),
   setAudioLevel: (audioLevel) => set({ audioLevel }),
+  setPlaybackLevel: (playbackLevel) => set({ playbackLevel }),
   setIsMicActive: (isMicActive) => set({ isMicActive }),
   startNewConversation: () =>
     set({
@@ -65,7 +73,9 @@ export const useAssistantStore = create<AssistantStore>((set) => ({
       project: null,
       audioUrl: null,
       error: null,
+      notice: null,
       audioLevel: 0,
+      playbackLevel: 0,
       isMicActive: false,
     }),
 }))

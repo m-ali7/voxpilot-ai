@@ -107,6 +107,7 @@ export function useMicrophone(): MicrophoneController {
         const source = context.createMediaStreamSource(stream)
         const analyser = context.createAnalyser()
         analyser.fftSize = 512
+        analyser.smoothingTimeConstant = 0.8
         source.connect(analyser)
 
         const data = new Uint8Array(analyser.fftSize)

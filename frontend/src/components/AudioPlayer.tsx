@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
+import { useAudioAnalyser } from '../hooks/useAudioAnalyser'
+import { useAssistantStore } from '../state/assistantStore'
 import { PauseIcon, PlayIcon } from './icons'
 
 interface AudioPlayerProps {
@@ -10,30 +12,76 @@ interface AudioPlayerProps {
 export function AudioPlayer({ src, onEnded }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const [isPlaying, setIsPlaying] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const setPlaybackLevel = useAssistantStore((s) => s.setPlaybackLevel)
+
+  const { ref: analyserRef, start, stop } = useAudioAnalyser((level) => setPlaybackLevel(level))
+
+  const setElementRef = useCallback(
+    (node: HTMLAudioElement | null) => {
+      audioRef.current = node
+      analyserRef(node)
+    },
+    [analyserRef],
+  )
+
+  // Best-effort autoplay, independent of the analyser. No synchronous state
+  // updates: any rejection (autoplay blocked, or a synchronous throw) becomes a
+  // promise rejection handled asynchronously.
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!src || !audio) return
+    Promise.resolve()
+      .then(() => audio.play())
+      .catch(() => setFailed(true))
+  }, [src])
+
+  // Drive the analyser from playback state only (stable deps, no render loop).
+  useEffect(() => {
+    if (isPlaying) {
+      start()
+    } else {
+      stop()
+      setPlaybackLevel(0)
+    }
+  }, [isPlaying, start, stop, setPlaybackLevel])
 
   useEffect(() => {
-    if (src && audioRef.current) {
-      void audioRef.current.play().catch(() => {
-        // Autoplay may be blocked; the user can press play manually.
-      })
+    return () => {
+      setPlaybackLevel(0)
     }
-  }, [src])
+  }, [setPlaybackLevel])
 
   const toggle = () => {
     const audio = audioRef.current
     if (!audio) return
-    if (audio.paused) void audio.play()
-    else audio.pause()
+    if (audio.paused) {
+      setFailed(false)
+      try {
+        void audio.play().catch(() => setFailed(true))
+      } catch {
+        setFailed(true)
+      }
+    } else {
+      audio.pause()
+    }
   }
 
   return (
     <div className="flex items-center gap-3">
       <audio
-        ref={audioRef}
+        ref={setElementRef}
         src={src ?? undefined}
-        onPlay={() => setIsPlaying(true)}
+        onPlay={() => {
+          setIsPlaying(true)
+          setFailed(false)
+        }}
         onPause={() => setIsPlaying(false)}
         onEnded={onEnded}
+        onError={() => {
+          setIsPlaying(false)
+          setFailed(true)
+        }}
       />
       <button
         type="button"
@@ -46,7 +94,9 @@ export function AudioPlayer({ src, onEnded }: AudioPlayerProps) {
       </button>
       <div className="text-sm">
         <p className="font-medium text-slate-200">Voice briefing</p>
-        <p className="text-xs text-slate-500">{isPlaying ? 'Playing…' : 'Ready'}</p>
+        <p className="text-xs text-slate-500">
+          {failed ? 'Unavailable' : isPlaying ? 'Playing…' : 'Ready'}
+        </p>
       </div>
     </div>
   )
