@@ -52,6 +52,14 @@ describe('assistantStore', () => {
     expect(store.playbackLevel).toBe(0.7)
   })
 
+  it('setIsUserSpeaking updates and startNewConversation resets it', () => {
+    useAssistantStore.getState().setIsUserSpeaking(true)
+    expect(useAssistantStore.getState().isUserSpeaking).toBe(true)
+
+    useAssistantStore.getState().startNewConversation()
+    expect(useAssistantStore.getState().isUserSpeaking).toBe(false)
+  })
+
   it('interruptOutput increments the token and resets playbackLevel', () => {
     useAssistantStore.getState().setPlaybackLevel(0.6)
     const before = useAssistantStore.getState().interruptToken

@@ -17,6 +17,7 @@ interface AssistantStore {
   audioLevel: number
   playbackLevel: number
   isMicActive: boolean
+  isUserSpeaking: boolean
   interruptToken: number
 
   setState: (state: AssistantState) => void
@@ -32,6 +33,7 @@ interface AssistantStore {
   setAudioLevel: (level: number) => void
   setPlaybackLevel: (level: number) => void
   setIsMicActive: (active: boolean) => void
+  setIsUserSpeaking: (speaking: boolean) => void
   interruptOutput: () => void
   startNewConversation: () => void
 }
@@ -50,6 +52,7 @@ export const useAssistantStore = create<AssistantStore>((set) => ({
   audioLevel: 0,
   playbackLevel: 0,
   isMicActive: false,
+  isUserSpeaking: false,
   interruptToken: 0,
 
   setState: (state) => set({ state }),
@@ -65,6 +68,7 @@ export const useAssistantStore = create<AssistantStore>((set) => ({
   setAudioLevel: (audioLevel) => set({ audioLevel }),
   setPlaybackLevel: (playbackLevel) => set({ playbackLevel }),
   setIsMicActive: (isMicActive) => set({ isMicActive }),
+  setIsUserSpeaking: (isUserSpeaking) => set({ isUserSpeaking }),
   interruptOutput: () =>
     set((state) => ({ interruptToken: state.interruptToken + 1, playbackLevel: 0 })),
   startNewConversation: () =>
@@ -82,6 +86,7 @@ export const useAssistantStore = create<AssistantStore>((set) => ({
       audioLevel: 0,
       playbackLevel: 0,
       isMicActive: false,
+      isUserSpeaking: false,
       interruptToken: 0,
     }),
 }))

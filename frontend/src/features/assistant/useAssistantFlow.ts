@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
 import { createSession, mediaUrl, submitTurn, transcribeAudio } from '../../api/voxpilot'
 import { useMicrophone } from '../../hooks/useMicrophone'
@@ -7,13 +7,14 @@ import type { ProjectIntelligence } from '../../types/api'
 import type { AssistantState } from '../../types/assistant'
 import { wait } from '../../utils/async'
 import { normalizeError } from '../../utils/errors'
+import { DEFAULT_VAD_CONFIG, VoiceActivityDetector } from '../../utils/vad'
 
 // Non-streaming pipeline: we stage the visual states around the single
 // backend round-trip so the experience reads clearly. Real granular state
 // transitions arrive with streaming (a later phase).
 const STAGE_MS = 650
 
-const EMPTY_TRANSCRIPT_NOTICE = "I didn't catch anything. Tap the orb and try again."
+const EMPTY_TRANSCRIPT_NOTICE = "I didn't catch anything \u2014 try again."
 const NOTICE_DURATION_MS = 2200
 
 export interface AssistantFlow {
@@ -29,6 +30,10 @@ export function useAssistantFlow(): AssistantFlow {
   const store = useAssistantStore()
   const mic = useMicrophone()
   const noticeTimerRef = useRef<number | null>(null)
+  const vadRef = useRef<VoiceActivityDetector | null>(null)
+  const lastSpeakingRef = useRef(false)
+  const stopListeningRef = useRef<() => Promise<void>>(async () => {})
+  const handleNoSpeechRef = useRef<() => Promise<void>>(async () => {})
 
   const clearNoticeTimer = useCallback(() => {
     if (noticeTimerRef.current !== null) {
@@ -119,9 +124,14 @@ export function useAssistantFlow(): AssistantFlow {
   const stopListening = useCallback(async () => {
     if (!mic.isRecording) return
 
+    // Manual stop (or VAD auto-stop already fired): disable any pending VAD
+    // event so only one stop/transcribe/submit sequence can occur.
+    vadRef.current?.cancel()
+
     try {
       const blob = await mic.stopRecording()
       store.setIsMicActive(false)
+      store.setIsUserSpeaking(false)
       store.setNotice(null)
       clearNoticeTimer()
       store.setState('understanding')
@@ -150,6 +160,19 @@ export function useAssistantFlow(): AssistantFlow {
     }
   }, [mic, store, ensureSession, applyTurn, handleFailure, showTransientNotice, clearNoticeTimer])
 
+  const handleNoSpeech = useCallback(async () => {
+    if (!mic.isRecording) return
+    vadRef.current?.cancel()
+    try {
+      await mic.stopRecording() // discard the silent blob — no transcription
+    } catch {
+      // ignore
+    }
+    store.setIsMicActive(false)
+    store.setIsUserSpeaking(false)
+    showTransientNotice(EMPTY_TRANSCRIPT_NOTICE)
+  }, [mic, store, showTransientNotice])
+
   const startListening = useCallback(async () => {
     // Barge-in: stop any current assistant playback before listening.
     store.interruptOutput()
@@ -171,9 +194,28 @@ export function useAssistantFlow(): AssistantFlow {
       return
     }
 
+    const vad = new VoiceActivityDetector(DEFAULT_VAD_CONFIG, {
+      onSpeechEnd: () => {
+        void stopListeningRef.current()
+      },
+      onNoSpeech: () => {
+        void handleNoSpeechRef.current()
+      },
+    })
+    vadRef.current = vad
+    lastSpeakingRef.current = false
+    store.setIsUserSpeaking(false)
+
     store.setState('listening')
     store.setIsMicActive(true)
-    await mic.startRecording((level) => store.setAudioLevel(level))
+    await mic.startRecording((level) => {
+      store.setAudioLevel(level)
+      const speaking = vad.push(level)
+      if (speaking !== lastSpeakingRef.current) {
+        lastSpeakingRef.current = speaking
+        store.setIsUserSpeaking(speaking)
+      }
+    })
   }, [mic, store, clearNoticeTimer])
 
   const toggleListening = useCallback(async () => {
@@ -186,8 +228,16 @@ export function useAssistantFlow(): AssistantFlow {
 
   const startNewConversation = useCallback(() => {
     clearNoticeTimer()
+    vadRef.current?.cancel()
+    lastSpeakingRef.current = false
     store.startNewConversation()
   }, [store, clearNoticeTimer])
+
+  // Keep the long-lived VAD listeners pointing at the latest async callbacks.
+  useEffect(() => {
+    stopListeningRef.current = stopListening
+    handleNoSpeechRef.current = handleNoSpeech
+  })
 
   return {
     state: store.state,
