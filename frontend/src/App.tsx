@@ -164,10 +164,10 @@ export default function App() {
           >
             {/* Project header */}
             <div className="sticky top-0 z-20 border-b border-slate-800/60 bg-[#05070d]/85 backdrop-blur-md">
-              <div className="mx-auto flex h-20 max-w-6xl items-center gap-3 px-6 sm:px-10">
+              <div className="mx-auto flex max-w-6xl items-center gap-4 px-6 py-4 sm:gap-5 sm:px-10 sm:py-5">
                 <motion.div
                   layoutId="voxpilot-orb"
-                  className="h-20 w-20 shrink-0"
+                  className="h-20 w-20 shrink-0 sm:h-[92px] sm:w-[92px]"
                   transition={{ type: 'spring', stiffness: 180, damping: 26 }}
                 >
                   <AssistantOrb
@@ -179,33 +179,33 @@ export default function App() {
                   />
                 </motion.div>
 
-                <div className="flex min-w-0 items-center gap-2">
-                  <span className="truncate text-sm font-semibold text-slate-100">
+                <div className="flex min-w-0 flex-col gap-1.5">
+                  <span className="truncate text-base font-semibold tracking-tight text-slate-100 sm:text-lg">
                     {project?.project_name ?? 'VoxPilot'}
                   </span>
-                  <span className="shrink-0 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-300">
-                    Demo data
-                  </span>
-                  {project?.status && (
-                    <span
-                      className={`hidden items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider sm:inline-flex ${statusClass(
-                        project.status,
-                      )}`}
-                    >
-                      <span className={`h-1.5 w-1.5 rounded-full ${statusDot(project.status)}`} />
-                      {project.status}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="shrink-0 rounded-full border border-amber-400/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-amber-300">
+                      Demo data
                     </span>
-                  )}
+                    {project?.status && (
+                      <span
+                        className={`hidden items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider sm:inline-flex ${statusClass(
+                          project.status,
+                        )}`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full ${statusDot(project.status)}`} />
+                        {project.status}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                <div className="ml-auto flex shrink-0 items-center gap-4">
-                  <div className="hidden sm:block">
-                    <StatusIndicator state={state} label={statusLabel} />
-                  </div>
+                <div className="ml-auto flex shrink-0 items-center gap-2.5 sm:gap-3">
+                  <StatusIndicator state={state} label={statusLabel} variant="pill" />
                   <button
                     type="button"
                     onClick={flow.startNewConversation}
-                    className="rounded-lg border border-slate-700/60 px-3 py-1.5 text-sm text-slate-400 transition-colors hover:bg-slate-800/60 hover:text-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70"
+                    className="shrink-0 rounded-lg border border-slate-700/60 bg-slate-800/40 px-3.5 py-1.5 text-sm font-medium text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-700/50 hover:text-slate-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70"
                   >
                     New conversation
                   </button>
