@@ -40,6 +40,7 @@ class Settings(BaseSettings):
 
     openai_api_key: SecretStr | None = None
     openai_model: str = "gpt-4.1-mini"
+    stt_language: str = "en"
 
     elevenlabs_api_key: SecretStr | None = None
     elevenlabs_voice_id: str | None = None

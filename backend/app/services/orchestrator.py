@@ -69,6 +69,13 @@ class OrchestrationResult:
     response: str
 
 
+@dataclass(frozen=True)
+class PreparedTurn:
+    intent: str
+    project: ProjectIntelligence
+    messages: list[dict[str, str]]
+
+
 class Orchestrator:
     """Consolidated VoxPilot pipeline: intent -> intelligence -> LLM response."""
 
@@ -82,11 +89,12 @@ class Orchestrator:
         self._intelligence = intelligence
         self._llm = llm
 
-    async def run(
+    async def prepare(
         self,
         user_prompt: str,
         prior_messages: list[dict[str, str]] | None = None,
-    ) -> OrchestrationResult:
+    ) -> PreparedTurn:
+        """Run intent + intelligence and build the LLM input, without generating."""
         detected_intent = await self._intent_classifier.classify(user_prompt)
         project = await self._intelligence.get_intelligence(user_prompt)
         context = format_project_intelligence(project)
@@ -94,10 +102,19 @@ class Orchestrator:
 
         history = list(prior_messages or [])
         history.append({"role": "user", "content": enriched_prompt})
-        response = await self._llm.generate(history)
+
+        return PreparedTurn(intent=detected_intent, project=project, messages=history)
+
+    async def run(
+        self,
+        user_prompt: str,
+        prior_messages: list[dict[str, str]] | None = None,
+    ) -> OrchestrationResult:
+        prepared = await self.prepare(user_prompt, prior_messages)
+        response = await self._llm.generate(prepared.messages)
 
         return OrchestrationResult(
-            intent=detected_intent,
-            project=project,
+            intent=prepared.intent,
+            project=prepared.project,
             response=response,
         )

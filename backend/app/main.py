@@ -4,6 +4,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.routers import health, sessions, transcribe, turn
+from app.api.ws import router as ws_router
 from app.core.config import get_settings
 from app.core.errors import ProviderError, VoxPilotError
 from app.core.logging import configure_logging
@@ -42,6 +43,7 @@ def create_app() -> FastAPI:
     app.include_router(sessions.router)
     app.include_router(transcribe.router)
     app.include_router(turn.router)
+    app.include_router(ws_router)
 
     return app
 

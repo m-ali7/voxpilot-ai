@@ -1,25 +1,44 @@
 import { useCallback, useEffect, useRef } from 'react'
 
 import { createSession, mediaUrl, submitTurn, transcribeAudio } from '../../api/voxpilot'
+import { VoxPilotSocket } from '../../api/ws'
 import { useMicrophone } from '../../hooks/useMicrophone'
 import { useAssistantStore } from '../../state/assistantStore'
 import type { ProjectIntelligence } from '../../types/api'
 import type { AssistantState } from '../../types/assistant'
+import type { ServerEvent } from '../../types/events'
 import { wait } from '../../utils/async'
 import { normalizeError } from '../../utils/errors'
 import { DEFAULT_VAD_CONFIG, VoiceActivityDetector } from '../../utils/vad'
 
-// Non-streaming pipeline: we stage the visual states around the single
-// backend round-trip so the experience reads clearly. Real granular state
-// transitions arrive with streaming (a later phase).
+// Non-streaming REST fallback: stage the visual states around the single
+// round-trip. The WebSocket path replaces these with real lifecycle events.
 const STAGE_MS = 650
 
 const EMPTY_TRANSCRIPT_NOTICE = "I didn't catch anything \u2014 try again."
 const NOTICE_DURATION_MS = 2200
+const DELTA_FLUSH_MS = 50
 
 // Stable imperative accessor — avoids subscribing the whole store (which would
 // re-render on every high-frequency audioLevel/playbackLevel write).
 const getState = useAssistantStore.getState
+
+function newTurnId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `turn-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function base64ToObjectUrl(base64: string): string {
+  const binary = atob(base64)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i)
+  }
+  const blob = new Blob([bytes], { type: 'audio/mpeg' })
+  return URL.createObjectURL(blob)
+}
 
 export interface AssistantFlow {
   state: AssistantState
@@ -38,6 +57,12 @@ export function useAssistantFlow(): AssistantFlow {
   const lastSpeakingRef = useRef(false)
   const stopListeningRef = useRef<() => Promise<void>>(async () => {})
   const handleNoSpeechRef = useRef<() => Promise<void>>(async () => {})
+
+  const socketRef = useRef<VoxPilotSocket | null>(null)
+  if (socketRef.current === null) socketRef.current = new VoxPilotSocket()
+  const activeTurnIdRef = useRef<string | null>(null)
+  const deltaBufferRef = useRef('')
+  const flushTimerRef = useRef<number | null>(null)
 
   const clearNoticeTimer = useCallback(() => {
     if (noticeTimerRef.current !== null) {
@@ -72,9 +97,13 @@ export function useAssistantFlow(): AssistantFlow {
 
   const ensureSession = useCallback(async (): Promise<string> => {
     const current = getState().sessionId
-    if (current) return current
+    if (current) {
+      socketRef.current?.connect(current)
+      return current
+    }
     const session = await createSession()
     getState().setSessionId(session.id)
+    socketRef.current?.connect(session.id)
     return session.id
   }, [])
 
@@ -83,20 +112,118 @@ export function useAssistantFlow(): AssistantFlow {
       getState().setIntent(intent)
       getState().setProject(project)
       getState().setResponse(response)
-      getState().setAudioUrl(mediaUrl(audioUrl))
+      getState().enqueueAudioSegment({ index: 0, url: mediaUrl(audioUrl) })
+      getState().markAudioComplete()
       getState().setState('speaking')
     },
     [],
   )
 
-  const submitText = useCallback(
+  const flushDeltas = useCallback(() => {
+    if (flushTimerRef.current !== null) {
+      window.clearTimeout(flushTimerRef.current)
+      flushTimerRef.current = null
+    }
+    const buffered = deltaBufferRef.current
+    deltaBufferRef.current = ''
+    if (buffered) getState().appendResponse(buffered)
+  }, [])
+
+  const scheduleFlush = useCallback(
+    (delta: string) => {
+      deltaBufferRef.current += delta
+      if (flushTimerRef.current !== null) return
+      flushTimerRef.current = window.setTimeout(() => {
+        flushTimerRef.current = null
+        flushDeltas()
+      }, DELTA_FLUSH_MS)
+    },
+    [flushDeltas],
+  )
+
+  const handleServerEvent = useCallback(
+    (event: ServerEvent) => {
+      const turnId = activeTurnIdRef.current
+      if (event.turn_id && turnId && event.turn_id !== turnId) return
+
+      switch (event.type) {
+        case 'session.ready':
+          break
+        case 'intent.resolved':
+          getState().setIntent(event.intent)
+          break
+        case 'retrieval.started':
+          getState().setState('retrieving')
+          break
+        case 'retrieval.completed':
+          getState().setProject(event.project)
+          break
+        case 'response.started':
+          getState().setState('thinking')
+          getState().setResponse('')
+          break
+        case 'response.delta':
+          scheduleFlush(event.delta)
+          break
+        case 'response.completed':
+          flushDeltas()
+          getState().setResponse(event.text)
+          getState().setProject(event.project)
+          break
+        case 'audio.started':
+          getState().setState('speaking')
+          break
+        case 'audio.chunk':
+          getState().enqueueAudioSegment({
+            index: event.index,
+            url: base64ToObjectUrl(event.data),
+          })
+          break
+        case 'audio.completed':
+          getState().markAudioComplete()
+          if (getState().audioQueue.length === 0) {
+            getState().setState('idle')
+          }
+          break
+        case 'turn.cancelled':
+          break
+        case 'error':
+          getState().setError(event.message)
+          getState().setState('error')
+          break
+      }
+    },
+    [scheduleFlush, flushDeltas],
+  )
+
+  useEffect(() => {
+    const socket = socketRef.current
+    if (!socket) return
+    return socket.onEvent(handleServerEvent)
+  }, [handleServerEvent])
+
+  useEffect(() => {
+    return () => {
+      socketRef.current?.close()
+    }
+  }, [])
+
+  const cancelActiveTurn = useCallback(() => {
+    const sessionId = getState().sessionId
+    const turnId = activeTurnIdRef.current
+    if (turnId && sessionId) {
+      socketRef.current?.cancelTurn(sessionId, turnId)
+    }
+    activeTurnIdRef.current = null
+  }, [])
+
+  const submitTurnViaTransport = useCallback(
     async (text: string) => {
       const trimmed = text.trim()
       if (!trimmed) return
 
       // Barge-in: stop any current assistant playback before submitting.
-      getState().interruptOutput()
-
+      getState().clearAudio()
       getState().setUserTranscript(trimmed)
       getState().setError(null)
       getState().setNotice(null)
@@ -104,6 +231,18 @@ export function useAssistantFlow(): AssistantFlow {
 
       try {
         const sessionId = await ensureSession()
+        const socket = socketRef.current
+
+        if (socket && (await socket.waitForOpen())) {
+          const turnId = newTurnId()
+          cancelActiveTurn()
+          activeTurnIdRef.current = turnId
+          getState().setState('understanding')
+          socket.sendText(sessionId, turnId, trimmed)
+          return
+        }
+
+        // REST fallback (existing staged pipeline).
         getState().setState('understanding')
         await wait(STAGE_MS)
         getState().setState('retrieving')
@@ -115,7 +254,14 @@ export function useAssistantFlow(): AssistantFlow {
         handleFailure(err)
       }
     },
-    [ensureSession, applyTurn, handleFailure, clearNoticeTimer],
+    [ensureSession, applyTurn, handleFailure, clearNoticeTimer, cancelActiveTurn],
+  )
+
+  const submitText = useCallback(
+    async (text: string) => {
+      await submitTurnViaTransport(text)
+    },
+    [submitTurnViaTransport],
   )
 
   const stopListening = useCallback(async () => {
@@ -134,9 +280,6 @@ export function useAssistantFlow(): AssistantFlow {
       getState().setState('understanding')
 
       const sessionId = await ensureSession()
-      await wait(STAGE_MS)
-      getState().setState('retrieving')
-
       const { text } = await transcribeAudio(sessionId, blob)
       const trimmed = text.trim()
 
@@ -146,16 +289,11 @@ export function useAssistantFlow(): AssistantFlow {
         return
       }
 
-      getState().setUserTranscript(trimmed)
-      await wait(STAGE_MS)
-
-      getState().setState('thinking')
-      const turn = await submitTurn(sessionId, trimmed)
-      applyTurn(turn.intent, turn.project, turn.response, turn.audio_url)
+      await submitTurnViaTransport(trimmed)
     } catch (err) {
       handleFailure(err)
     }
-  }, [mic, ensureSession, applyTurn, handleFailure, showTransientNotice, clearNoticeTimer])
+  }, [mic, ensureSession, handleFailure, showTransientNotice, clearNoticeTimer, submitTurnViaTransport])
 
   const handleNoSpeech = useCallback(async () => {
     if (!mic.isRecording) return
@@ -172,7 +310,7 @@ export function useAssistantFlow(): AssistantFlow {
 
   const startListening = useCallback(async () => {
     // Barge-in: stop any current assistant playback before listening.
-    getState().interruptOutput()
+    getState().clearAudio()
     getState().setError(null)
     getState().setNotice(null)
     clearNoticeTimer()
@@ -227,6 +365,8 @@ export function useAssistantFlow(): AssistantFlow {
     clearNoticeTimer()
     vadRef.current?.cancel()
     lastSpeakingRef.current = false
+    activeTurnIdRef.current = null
+    socketRef.current?.close()
     getState().startNewConversation()
   }, [clearNoticeTimer])
 

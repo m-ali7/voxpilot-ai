@@ -68,7 +68,6 @@ export default function App() {
   const response = useAssistantStore((s) => s.response)
   const intent = useAssistantStore((s) => s.intent)
   const project = useAssistantStore((s) => s.project)
-  const audioUrl = useAssistantStore((s) => s.audioUrl)
   const error = useAssistantStore((s) => s.error)
   const notice = useAssistantStore((s) => s.notice)
   const setState = useAssistantStore((s) => s.setState)
@@ -165,10 +164,10 @@ export default function App() {
           >
             {/* Project header */}
             <div className="sticky top-0 z-20 border-b border-slate-800/60 bg-[#05070d]/85 backdrop-blur-md">
-              <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-6 sm:px-10">
+              <div className="mx-auto flex h-20 max-w-6xl items-center gap-3 px-6 sm:px-10">
                 <motion.div
                   layoutId="voxpilot-orb"
-                  className="h-11 w-11 shrink-0"
+                  className="h-20 w-20 shrink-0"
                   transition={{ type: 'spring', stiffness: 180, damping: 26 }}
                 >
                   <AssistantOrb
@@ -231,7 +230,6 @@ export default function App() {
                 response={response}
                 intent={intent}
                 project={project}
-                audioUrl={audioUrl}
                 onAudioEnded={handleAudioEnded}
               />
             </div>

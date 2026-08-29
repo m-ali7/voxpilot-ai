@@ -49,8 +49,11 @@ class MessageRepository:
         role: str,
         content: str,
         intent: str | None = None,
+        turn_id: str | None = None,
     ) -> Message:
-        message = Message(session_id=session_id, role=role, content=content, intent=intent)
+        message = Message(
+            session_id=session_id, role=role, content=content, intent=intent, turn_id=turn_id
+        )
         self._db.add(message)
         await self._db.commit()
         await self._db.refresh(message)

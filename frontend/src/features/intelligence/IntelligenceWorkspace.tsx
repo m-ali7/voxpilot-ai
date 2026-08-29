@@ -9,7 +9,6 @@ interface IntelligenceWorkspaceProps {
   response: string | null
   intent: string | null
   project: ProjectIntelligence | null
-  audioUrl: string | null
   onAudioEnded: () => void
 }
 
@@ -66,7 +65,6 @@ export function IntelligenceWorkspace({
   response,
   intent,
   project,
-  audioUrl,
   onAudioEnded,
 }: IntelligenceWorkspaceProps) {
   return (
@@ -79,7 +77,6 @@ export function IntelligenceWorkspace({
           <ResponsePanel
             response={response}
             intent={intent}
-            audioUrl={audioUrl}
             onAudioEnded={onAudioEnded}
           />
         )}

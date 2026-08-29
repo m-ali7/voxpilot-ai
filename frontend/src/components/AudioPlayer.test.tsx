@@ -1,21 +1,13 @@
 // @vitest-environment jsdom
-import { act, render, waitFor } from '@testing-library/react'
+import { act, render } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { Mock } from 'vitest'
 
 import { AudioPlayer } from './AudioPlayer'
 import { useAssistantStore } from '../state/assistantStore'
 
-describe('AudioPlayer interruption', () => {
-  let pauseSpy: Mock
-
+describe('AudioPlayer', () => {
   beforeEach(() => {
-    pauseSpy = vi.fn()
-    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(function pause(
-      this: HTMLMediaElement,
-    ) {
-      pauseSpy()
-    })
+    vi.spyOn(HTMLMediaElement.prototype, 'pause').mockImplementation(() => {})
     vi.spyOn(HTMLMediaElement.prototype, 'play').mockResolvedValue(undefined)
     useAssistantStore.getState().startNewConversation()
   })
@@ -24,48 +16,27 @@ describe('AudioPlayer interruption', () => {
     vi.restoreAllMocks()
   })
 
-  it('does not react to the initial token on mount', async () => {
-    render(<AudioPlayer src="/media/test.mp3" onEnded={() => {}} />)
-
-    await act(async () => {})
-
-    expect(pauseSpy).not.toHaveBeenCalled()
+  it('renders with no audio', () => {
+    render(<AudioPlayer onEnded={() => {}} />)
+    expect(document.querySelector('audio')).toBeTruthy()
   })
 
-  it('pauses audio and resets playbackLevel when interruptOutput is called', async () => {
+  it('does not crash when clearAudio fires on an empty queue', () => {
+    render(<AudioPlayer onEnded={() => {}} />)
+
+    expect(() => {
+      useAssistantStore.getState().clearAudio()
+    }).not.toThrow()
+  })
+
+  it('resets playbackLevel when clearAudio fires (new turn / interrupt)', () => {
     useAssistantStore.getState().setPlaybackLevel(0.5)
-    render(<AudioPlayer src="/media/test.mp3" onEnded={() => {}} />)
+    render(<AudioPlayer onEnded={() => {}} />)
 
     act(() => {
-      useAssistantStore.getState().interruptOutput()
+      useAssistantStore.getState().clearAudio()
     })
 
-    await waitFor(() => {
-      expect(pauseSpy).toHaveBeenCalled()
-    })
     expect(useAssistantStore.getState().playbackLevel).toBe(0)
-  })
-
-  it('repeated interruption is safe and idempotent', async () => {
-    render(<AudioPlayer src="/media/test.mp3" onEnded={() => {}} />)
-
-    act(() => {
-      useAssistantStore.getState().interruptOutput()
-      useAssistantStore.getState().interruptOutput()
-      useAssistantStore.getState().interruptOutput()
-    })
-
-    await act(async () => {})
-    expect(useAssistantStore.getState().playbackLevel).toBe(0)
-  })
-
-  it('interruption is safe when nothing is playing', async () => {
-    render(<AudioPlayer src={null} onEnded={() => {}} />)
-
-    act(() => {
-      useAssistantStore.getState().interruptOutput()
-    })
-
-    await act(async () => {})
   })
 })

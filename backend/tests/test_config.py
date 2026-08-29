@@ -17,6 +17,15 @@ def test_default_output_dir_is_repo_root_outputs() -> None:
     assert settings.output_dir == PROJECT_ROOT / "outputs"
 
 
+def test_stt_language_defaults_to_english() -> None:
+    assert Settings(_env_file=None).stt_language == "en"
+
+
+def test_stt_language_is_configurable(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("STT_LANGUAGE", "es")
+    assert Settings(_env_file=None).stt_language == "es"
+
+
 def test_dotenv_file_values_are_loaded(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
     env_file = tmp_path / ".env"
     env_file.write_text("OPENAI_MODEL=from-dotenv\n", encoding="utf-8")

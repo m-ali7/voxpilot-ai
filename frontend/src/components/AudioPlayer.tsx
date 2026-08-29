@@ -5,16 +5,25 @@ import { useAssistantStore } from '../state/assistantStore'
 import { PauseIcon, PlayIcon } from './icons'
 
 interface AudioPlayerProps {
-  src: string | null
   onEnded: () => void
 }
 
-export function AudioPlayer({ src, onEnded }: AudioPlayerProps) {
+/**
+ * Plays the current turn's audio segments in order. The component is keyed by
+ * `audioEpoch` (via ResponsePanel) so a new turn / interruption remounts it with
+ * a fresh <audio> element — guaranteeing the previous turn's audio can never
+ * replay or leak into the new turn.
+ */
+export function AudioPlayer({ onEnded }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [index, setIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(false)
   const [failed, setFailed] = useState(false)
+  const waitingRef = useRef(false)
+
+  const queue = useAssistantStore((s) => s.audioQueue)
+  const complete = useAssistantStore((s) => s.audioComplete)
   const setPlaybackLevel = useAssistantStore((s) => s.setPlaybackLevel)
-  const interruptToken = useAssistantStore((s) => s.interruptToken)
 
   const { ref: analyserRef, start, stop } = useAudioAnalyser((level) => setPlaybackLevel(level))
 
@@ -26,39 +35,28 @@ export function AudioPlayer({ src, onEnded }: AudioPlayerProps) {
     [analyserRef],
   )
 
-  // React to interruption requests (barge-in). Idempotent: pausing an already
-  // paused element is a no-op, and it never throws.
-  const handledTokenRef = useRef(interruptToken)
-  useEffect(() => {
-    if (interruptToken === handledTokenRef.current) return
-    handledTokenRef.current = interruptToken
-    const audio = audioRef.current
-    if (audio) {
-      try {
-        audio.pause()
-        audio.currentTime = 0
-      } catch {
-        // ignore
-      }
-    }
-    stop()
-    setIsPlaying(false)
-    setFailed(false)
-    setPlaybackLevel(0)
-  }, [interruptToken, stop, setPlaybackLevel])
+  const currentUrl = queue[index]?.url ?? null
+  const hasAudio = queue.length > 0
 
-  // Best-effort autoplay, independent of the analyser. No synchronous state
-  // updates: any rejection (autoplay blocked, or a synchronous throw) becomes a
-  // promise rejection handled asynchronously.
+  // Autoplay the current segment.
   useEffect(() => {
     const audio = audioRef.current
-    if (!src || !audio) return
+    if (!currentUrl || !audio) return
+    setFailed(false)
     Promise.resolve()
       .then(() => audio.play())
       .catch(() => setFailed(true))
-  }, [src])
+  }, [currentUrl])
 
-  // Drive the analyser from playback state only (stable deps, no render loop).
+  // Advance when the next segment arrives while waiting for more audio.
+  useEffect(() => {
+    if (waitingRef.current && queue.length > index + 1) {
+      waitingRef.current = false
+      setIndex(index + 1)
+    }
+  }, [queue.length, index])
+
+  // Drive the analyser from playback state.
   useEffect(() => {
     if (isPlaying) {
       start()
@@ -73,6 +71,16 @@ export function AudioPlayer({ src, onEnded }: AudioPlayerProps) {
       setPlaybackLevel(0)
     }
   }, [setPlaybackLevel])
+
+  const handleEnded = () => {
+    if (index + 1 < queue.length) {
+      setIndex(index + 1)
+    } else if (complete) {
+      onEnded()
+    } else {
+      waitingRef.current = true
+    }
+  }
 
   const toggle = () => {
     const audio = audioRef.current
@@ -89,29 +97,28 @@ export function AudioPlayer({ src, onEnded }: AudioPlayerProps) {
     }
   }
 
+  const status = failed ? 'Unavailable' : isPlaying ? 'Playing…' : hasAudio ? 'Ready' : 'Unavailable'
+
   return (
     <div className="flex items-center gap-3">
       <audio
         ref={setElementRef}
-        src={src ?? undefined}
+        src={currentUrl ?? undefined}
         onPlay={() => {
           setIsPlaying(true)
           setFailed(false)
         }}
         onPause={() => setIsPlaying(false)}
-        onEnded={onEnded}
+        onEnded={handleEnded}
         onError={() => {
           setIsPlaying(false)
-          setFailed(true)
-          // Treat a playback error like "playback finished" so the speaking
-          // state is cleared (never left stuck on 'speaking').
-          onEnded()
+          handleEnded()
         }}
       />
       <button
         type="button"
         onClick={toggle}
-        disabled={!src}
+        disabled={!hasAudio}
         aria-label={isPlaying ? 'Pause voice briefing' : 'Play voice briefing'}
         className="grid h-10 w-10 place-items-center rounded-full border border-blue-400/30 bg-blue-500/10 text-blue-100 transition-colors hover:bg-blue-500/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400/70 disabled:cursor-not-allowed disabled:opacity-40"
       >
@@ -119,9 +126,7 @@ export function AudioPlayer({ src, onEnded }: AudioPlayerProps) {
       </button>
       <div className="text-sm">
         <p className="font-medium text-slate-200">Voice briefing</p>
-        <p className="text-xs text-slate-500">
-          {failed ? 'Unavailable' : isPlaying ? 'Playing…' : 'Ready'}
-        </p>
+        <p className="text-xs text-slate-500">{status}</p>
       </div>
     </div>
   )

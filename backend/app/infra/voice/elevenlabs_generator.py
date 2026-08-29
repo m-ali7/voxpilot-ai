@@ -29,6 +29,13 @@ class ElevenLabsVoiceGenerator(TTSPort):
         filename = f"voxpilot_{uuid.uuid4().hex}.mp3"
         return await anyio.to_thread.run_sync(self._synthesize_sync, text, filename)
 
+    async def synthesize_bytes(self, text: str) -> bytes:
+        if not text.strip():
+            raise ValueError("Text cannot be empty.")
+        if self._client is None or not self._voice_id:
+            raise ProviderError("ElevenLabs API key or voice ID is not configured.")
+        return await anyio.to_thread.run_sync(self._synthesize_bytes_sync, text)
+
     def _synthesize_sync(self, text: str, filename: str) -> Path:
         assert self._client is not None
         assert self._voice_id is not None
@@ -41,3 +48,16 @@ class ElevenLabsVoiceGenerator(TTSPort):
         output_path = self._output_dir / filename
         save(audio, str(output_path))
         return output_path
+
+    def _synthesize_bytes_sync(self, text: str) -> bytes:
+        assert self._client is not None
+        assert self._voice_id is not None
+        audio = self._client.text_to_speech.convert(
+            voice_id=self._voice_id,
+            model_id=self._model_id,
+            text=text,
+            output_format="mp3_44100_128",
+        )
+        if isinstance(audio, bytes):
+            return audio
+        return b"".join(audio)

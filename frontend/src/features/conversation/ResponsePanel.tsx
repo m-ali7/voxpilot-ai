@@ -1,13 +1,15 @@
 import { AudioPlayer } from '../../components/AudioPlayer'
+import { useAssistantStore } from '../../state/assistantStore'
 
 interface ResponsePanelProps {
   response: string
   intent: string | null
-  audioUrl: string | null
   onAudioEnded: () => void
 }
 
-export function ResponsePanel({ response, intent, audioUrl, onAudioEnded }: ResponsePanelProps) {
+export function ResponsePanel({ response, intent, onAudioEnded }: ResponsePanelProps) {
+  const audioEpoch = useAssistantStore((s) => s.audioEpoch)
+
   return (
     <section className="rounded-2xl border border-slate-800/80 bg-slate-900/40 p-5 backdrop-blur-md">
       <div className="flex items-center justify-between gap-3">
@@ -22,7 +24,7 @@ export function ResponsePanel({ response, intent, audioUrl, onAudioEnded }: Resp
       </div>
       <p className="mt-3 leading-relaxed text-slate-100">{response}</p>
       <div className="mt-5 border-t border-slate-800/80 pt-4">
-        <AudioPlayer src={audioUrl} onEnded={onAudioEnded} />
+        <AudioPlayer key={String(audioEpoch)} onEnded={onAudioEnded} />
       </div>
     </section>
   )

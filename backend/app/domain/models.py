@@ -44,6 +44,7 @@ class Message(Base):
     role: Mapped[str] = mapped_column(String(16))
     content: Mapped[str] = mapped_column(Text)
     intent: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    turn_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     session: Mapped["Session"] = relationship(back_populates="messages")

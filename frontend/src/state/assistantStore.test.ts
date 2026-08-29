@@ -24,7 +24,8 @@ describe('assistantStore', () => {
       documents: [],
       sources: [],
     })
-    store.setAudioUrl('/media/x.mp3')
+    store.enqueueAudioSegment({ index: 0, url: 'blob:fake-audio' })
+    store.markAudioComplete()
     store.setError('boom')
     store.setNotice('notice')
     store.setAudioLevel(0.5)
@@ -41,6 +42,9 @@ describe('assistantStore', () => {
     expect(reset.notice).toBeNull()
     expect(reset.audioLevel).toBe(0)
     expect(reset.playbackLevel).toBe(0)
+    expect(reset.audioQueue).toEqual([])
+    expect(reset.audioComplete).toBe(false)
+    expect(reset.audioEpoch).toBe(0)
   })
 
   it('setNotice and setPlaybackLevel update their fields', () => {
@@ -60,23 +64,37 @@ describe('assistantStore', () => {
     expect(useAssistantStore.getState().isUserSpeaking).toBe(false)
   })
 
-  it('interruptOutput increments the token and resets playbackLevel', () => {
-    useAssistantStore.getState().setPlaybackLevel(0.6)
-    const before = useAssistantStore.getState().interruptToken
+  it('appendResponse appends deltas to the current response', () => {
+    useAssistantStore.getState().setResponse('')
+    useAssistantStore.getState().appendResponse('Hel')
+    useAssistantStore.getState().appendResponse('lo')
+    expect(useAssistantStore.getState().response).toBe('Hello')
+  })
 
-    useAssistantStore.getState().interruptOutput()
+  it('clearAudio clears the queue and bumps the audio epoch', () => {
+    useAssistantStore.getState().setPlaybackLevel(0.6)
+    useAssistantStore.getState().enqueueAudioSegment({ index: 0, url: 'blob:fake' })
+    useAssistantStore.getState().markAudioComplete()
+    const before = useAssistantStore.getState().audioEpoch
+
+    useAssistantStore.getState().clearAudio()
 
     const store = useAssistantStore.getState()
-    expect(store.interruptToken).toBe(before + 1)
+    expect(store.audioQueue).toEqual([])
+    expect(store.audioComplete).toBe(false)
+    expect(store.audioEpoch).toBe(before + 1)
     expect(store.playbackLevel).toBe(0)
   })
 
-  it('startNewConversation resets the interruption token', () => {
-    useAssistantStore.getState().interruptOutput()
-    useAssistantStore.getState().interruptOutput()
+  it('enqueueAudioSegment preserves order and markAudioComplete flips the flag', () => {
+    useAssistantStore.getState().enqueueAudioSegment({ index: 0, url: 'blob:a' })
+    useAssistantStore.getState().enqueueAudioSegment({ index: 1, url: 'blob:b' })
 
-    useAssistantStore.getState().startNewConversation()
+    const store = useAssistantStore.getState()
+    expect(store.audioQueue.map((s) => s.index)).toEqual([0, 1])
+    expect(store.audioComplete).toBe(false)
 
-    expect(useAssistantStore.getState().interruptToken).toBe(0)
+    useAssistantStore.getState().markAudioComplete()
+    expect(useAssistantStore.getState().audioComplete).toBe(true)
   })
 })
