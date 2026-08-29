@@ -29,8 +29,9 @@ class DemoProjectConnector(ProjectIntelligencePort):
             summary=(
                 "Project Phoenix is an enterprise voice copilot programme delivering "
                 "an AI-led assistant for executive briefings, delivery risk analysis and "
-                "workflow intelligence. The programme is currently rated Amber with "
-                "real-time streaming still outstanding."
+                "workflow intelligence. The programme is currently rated Amber: the "
+                "realtime streaming voice pipeline is live, while speech-to-text remains "
+                "batch and enterprise integrations are still pending."
             ),
             metrics=[
                 ProjectMetric(label="Programme health", value="Amber", trend="flat"),
@@ -41,11 +42,11 @@ class DemoProjectConnector(ProjectIntelligencePort):
             ],
             risks=[
                 ProjectRisk(
-                    title="Real-time streaming not yet implemented",
-                    severity="high",
+                    title="Speech-to-text is batch rather than live partial streaming",
+                    severity="medium",
                     detail=(
-                        "Voice responses are currently generated non-streaming, "
-                        "increasing perceived latency."
+                        "Transcription only starts after the user finishes speaking, "
+                        "so responses cannot begin until the full utterance is transcribed."
                     ),
                     owner="Alex Chen",
                 ),
@@ -76,12 +77,12 @@ class DemoProjectConnector(ProjectIntelligencePort):
             ],
             actions=[
                 ProjectAction(
-                    title="Complete speech-to-text integration",
+                    title="Add live partial speech-to-text streaming",
                     owner="Alex Chen",
-                    due="This week",
+                    due="Next sprint",
                 ),
                 ProjectAction(
-                    title="Introduce streaming responses",
+                    title="Profile and tune end-to-end latency",
                     owner="Priya Nair",
                     due="Next sprint",
                 ),
